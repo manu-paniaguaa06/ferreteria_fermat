@@ -1,0 +1,417 @@
+{% extends "base.html" %}
+{% block title %}Panel Empleados{% endblock %}
+{% block content %}
+
+<div class="page-header">
+  <h1 class="page-title">Empleados</h1>
+</div>
+
+<!-- Tabs -->
+<div class="tabs-bar">
+  <button class="tab active" onclick="showTab('pedidos-clientes')">📋 Pedidos Clientes</button>
+  <button class="tab" onclick="showTab('pedidos-prov')">🚚 Pedidos Proveedores</button>
+  <button class="tab" onclick="showTab('inventario')">📦 Inventario</button>
+  <button class="tab" onclick="showTab('clientes-tab')">👥 Clientes</button>
+</div>
+
+<!-- ── TAB: Pedidos Clientes ── -->
+<div id="tab-pedidos-clientes" class="tab-content active">
+  <div class="tab-header">
+    <h2>Pedidos de Clientes</h2>
+    <div class="filtros-scroll">
+      <button class="filter-pill active" onclick="filtrarPedidosClientes(this,'')">Todos</button>
+      <button class="filter-pill" onclick="filtrarPedidosClientes(this,'pendiente')">⏳ Pendiente</button>
+      <button class="filter-pill" onclick="filtrarPedidosClientes(this,'confirmado')">✅ Confirmado</button>
+      <button class="filter-pill" onclick="filtrarPedidosClientes(this,'entregado')">📦 Entregado</button>
+    </div>
+  </div>
+  <div id="emp-pedidos-list" class="pedidos-list"></div>
+</div>
+
+<!-- ── TAB: Pedidos Proveedores ── -->
+<div id="tab-pedidos-prov" class="tab-content hidden">
+  <div class="tab-header">
+    <h2>Pedidos a Proveedores</h2>
+    <button class="btn btn-primary" onclick="openNuevoPedidoProv()">+ Nuevo pedido</button>
+  </div>
+  <div id="prov-pedidos-list" class="pedidos-list"></div>
+</div>
+
+<!-- ── TAB: Inventario ── -->
+<div id="tab-inventario" class="tab-content hidden">
+  <div class="tab-header">
+    <h2>Inventario</h2>
+    <button class="btn btn-primary" onclick="openNuevoProducto()">+ Agregar producto</button>
+  </div>
+  <div id="inventario-list" class="inventario-list"></div>
+</div>
+
+<!-- ── TAB: Clientes ── -->
+<div id="tab-clientes-tab" class="tab-content hidden">
+  <div class="tab-header">
+    <h2>Clientes</h2>
+    <button class="btn btn-primary" onclick="openNuevoClienteEmp()">+ Agregar cliente</button>
+  </div>
+  <div id="clientes-list" class="clientes-list"></div>
+</div>
+
+{% endblock %}
+{% block scripts %}
+<script>
+// ── TABS ──────────────────────────────────────────────────
+function showTab(name){
+  document.querySelectorAll('.tab').forEach((t,i)=>{
+    const tabs=['pedidos-clientes','pedidos-prov','inventario','clientes-tab'];
+    t.classList.toggle('active', tabs[i]===name);
+  });
+  document.querySelectorAll('.tab-content').forEach(c=>c.classList.add('hidden'));
+  document.getElementById(`tab-${name}`).classList.remove('hidden');
+  if(name==='pedidos-clientes') cargarPedidosClientes();
+  if(name==='pedidos-prov') cargarPedidosProv();
+  if(name==='inventario') cargarInventario();
+  if(name==='clientes-tab') cargarClientes();
+}
+
+// ── PEDIDOS CLIENTES ──────────────────────────────────────
+let pedidosClientesData=[];
+function cargarPedidosClientes(estado=''){
+  let url='/api/pedidos'+(estado?`?estado=${estado}`:'');
+  fetch(url).then(r=>r.json()).then(data=>{
+    pedidosClientesData=data;
+    renderEmpPedidos(data);
+  });
+}
+
+function renderEmpPedidos(data){
+  const list=document.getElementById('emp-pedidos-list');
+  if(!data.length){list.innerHTML='<p class="empty-msg">Sin pedidos</p>';return;}
+  list.innerHTML=data.map(p=>`
+    <div class="pedido-card emp-pedido" onclick="verPedidoEmp(${p.id})">
+      <div class="pedido-header">
+        <span class="pedido-id">#${p.id}</span>
+        <span class="badge badge-${p.estado}">${estadoLabel(p.estado)}</span>
+      </div>
+      <div class="pedido-cliente">${p.cliente}</div>
+      <div class="pedido-meta">
+        <span>${p.fecha}</span>
+        <span class="pedido-total">$${p.total.toFixed(2)}</span>
+      </div>
+      <div class="pedido-items-detail">
+        ${p.items.map(i=>`
+          <div class="item-row">
+            <span>${i.producto}</span>
+            <span>×${i.cantidad}</span>
+            <span>$${i.subtotal.toFixed(2)}</span>
+          </div>`).join('')}
+      </div>
+    </div>`).join('');
+}
+
+function estadoLabel(e){
+  return {pendiente:'⏳ Pendiente',confirmado:'✅ Confirmado',entregado:'📦 Entregado',cancelado:'❌ Cancelado',borrador:'📝 Borrador',enviado:'📤 Enviado',recibido:'✅ Recibido'}[e]||e;
+}
+
+function filtrarPedidosClientes(btn, estado){
+  document.querySelectorAll('#tab-pedidos-clientes .filter-pill').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  cargarPedidosClientes(estado);
+}
+
+function verPedidoEmp(id){
+  const p=pedidosClientesData.find(x=>x.id===id);
+  if(!p) return;
+  document.getElementById('modal-content').innerHTML=`
+    <div class="pedido-detalle">
+      <div class="pd-header"><h3>Pedido #${p.id}</h3><span class="badge badge-${p.estado}">${estadoLabel(p.estado)}</span></div>
+      <div class="pd-meta">
+        <div><span>Cliente</span><strong>${p.cliente}</strong></div>
+        <div><span>Fecha</span><strong>${p.fecha}</strong></div>
+      </div>
+      <h4>Productos solicitados</h4>
+      <div class="pd-items">
+        ${p.items.map(i=>`
+          <div class="pd-item">
+            <span class="pd-item-nombre">${i.producto}</span>
+            <span class="pd-item-qty">×${i.cantidad}</span>
+            <span class="pd-item-sub">$${i.subtotal.toFixed(2)}</span>
+          </div>`).join('')}
+      </div>
+      <div class="pd-total"><span>Total</span><strong>$${p.total.toFixed(2)}</strong></div>
+      ${p.notas?`<div class="pd-notas"><span>Notas:</span> ${p.notas}</div>`:''}
+      <div class="pd-actions">
+        ${p.estado==='pendiente'?`<button class="btn btn-success" onclick="actualizarEstado(${p.id},'confirmado','pedidos')">✅ Confirmar</button>`:''}
+        ${p.estado==='confirmado'?`<button class="btn btn-success" onclick="actualizarEstado(${p.id},'entregado','pedidos')">📦 Entregado</button>`:''}
+        ${p.estado==='pendiente'||p.estado==='confirmado'?`<button class="btn btn-danger" onclick="actualizarEstado(${p.id},'cancelado','pedidos')">❌ Cancelar</button>`:''}
+      </div>
+    </div>`;
+  document.getElementById('modal-overlay').classList.remove('hidden');
+}
+
+function actualizarEstado(id, estado, tipo){
+  const url = tipo==='pedidos'?`/api/pedidos/${id}/estado`:`/api/pedidos-proveedor/${id}/estado`;
+  fetch(url,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({estado})})
+    .then(r=>r.json()).then(()=>{
+      closeModal();
+      showToast('✓ Estado actualizado');
+      if(tipo==='pedidos') cargarPedidosClientes();
+      else cargarPedidosProv();
+    });
+}
+
+// ── PEDIDOS PROVEEDOR ─────────────────────────────────────
+let proveedores=[], productosAll=[], provPedidosData=[];
+
+function cargarPedidosProv(){
+  fetch('/api/pedidos-proveedor').then(r=>r.json()).then(data=>{
+    provPedidosData=data;
+    const list=document.getElementById('prov-pedidos-list');
+    if(!data.length){list.innerHTML='<p class="empty-msg">Sin pedidos a proveedores</p>';return;}
+    list.innerHTML=data.map(p=>`
+      <div class="pedido-card" onclick="verPedidoProv(${p.id})">
+        <div class="pedido-header">
+          <span class="pedido-id">#${p.id}</span>
+          <span class="badge badge-${p.estado}">${estadoLabel(p.estado)}</span>
+        </div>
+        <div class="pedido-cliente">🚚 ${p.proveedor}</div>
+        <div class="pedido-meta">
+          <span>${p.fecha}</span>
+          <span class="pedido-total">$${p.total.toFixed(2)}</span>
+        </div>
+        <div class="pedido-items-preview">
+          ${p.items.slice(0,2).map(i=>`<span class="item-chip">${i.producto} ×${i.cantidad}</span>`).join('')}
+          ${p.items.length>2?`<span class="item-chip muted">+${p.items.length-2} más</span>`:''}
+        </div>
+      </div>`).join('');
+  });
+}
+
+function verPedidoProv(id){
+  const p=provPedidosData.find(x=>x.id===id);
+  if(!p) return;
+  document.getElementById('modal-content').innerHTML=`
+    <div class="pedido-detalle">
+      <div class="pd-header"><h3>Pedido Proveedor #${p.id}</h3><span class="badge badge-${p.estado}">${estadoLabel(p.estado)}</span></div>
+      <div class="pd-meta">
+        <div><span>Proveedor</span><strong>${p.proveedor}</strong></div>
+        <div><span>Fecha</span><strong>${p.fecha}</strong></div>
+      </div>
+      <h4>Productos</h4>
+      <div class="pd-items">
+        ${p.items.map(i=>`
+          <div class="pd-item">
+            <span class="pd-item-nombre">${i.producto}</span>
+            <span class="pd-item-qty">×${i.cantidad}</span>
+            <span class="pd-item-sub">$${i.subtotal.toFixed(2)}</span>
+          </div>`).join('')}
+      </div>
+      <div class="pd-total"><span>Total</span><strong>$${p.total.toFixed(2)}</strong></div>
+      ${p.notas?`<div class="pd-notas"><span>Notas:</span> ${p.notas}</div>`:''}
+      <div class="pd-actions">
+        ${p.estado==='borrador'?`<button class="btn btn-primary" onclick="actualizarEstado(${p.id},'enviado','proveedor')">📤 Marcar enviado</button>`:''}
+        ${p.estado==='enviado'?`<button class="btn btn-success" onclick="actualizarEstado(${p.id},'recibido','proveedor')">✅ Marcar recibido</button>`:''}
+      </div>
+    </div>`;
+  document.getElementById('modal-overlay').classList.remove('hidden');
+}
+
+let itemsPedidoProv=[];
+async function openNuevoPedidoProv(){
+  if(!proveedores.length) proveedores = await fetch('/api/proveedores').then(r=>r.json());
+  if(!productosAll.length) productosAll = await fetch('/api/productos').then(r=>r.json());
+  itemsPedidoProv=[];
+  document.getElementById('modal-content').innerHTML=`
+    <h3 class="modal-title">Nuevo Pedido a Proveedor</h3>
+    <div class="form-group">
+      <label>Proveedor *</label>
+      <select id="pp-proveedor">
+        <option value="">— Selecciona —</option>
+        ${proveedores.map(p=>`<option value="${p.id}">${p.nombre}</option>`).join('')}
+      </select>
+    </div>
+    <div class="form-group">
+      <label>Agregar producto</label>
+      <div class="input-row">
+        <select id="pp-producto">
+          <option value="">— Producto —</option>
+          ${productosAll.map(p=>`<option value="${p.id}" data-precio="${p.precio}">${p.nombre}</option>`).join('')}
+        </select>
+        <input id="pp-qty" type="number" min="1" value="1" style="width:70px">
+        <button class="btn btn-sm" onclick="agregarItemProv()">+</button>
+      </div>
+    </div>
+    <div id="pp-items-list" class="pp-items"></div>
+    <div class="form-group">
+      <label>Notas</label>
+      <textarea id="pp-notas" rows="2" placeholder="Instrucciones..."></textarea>
+    </div>
+    <button class="btn btn-primary btn-full" onclick="guardarPedidoProv()">Crear pedido</button>`;
+  document.getElementById('modal-overlay').classList.remove('hidden');
+}
+
+function agregarItemProv(){
+  const sel=document.getElementById('pp-producto');
+  const id=parseInt(sel.value);
+  const precio=parseFloat(sel.options[sel.selectedIndex].dataset.precio);
+  const nombre=sel.options[sel.selectedIndex].text;
+  const qty=parseInt(document.getElementById('pp-qty').value)||1;
+  if(!id) return;
+  const ex=itemsPedidoProv.find(i=>i.producto_id===id);
+  if(ex) ex.cantidad+=qty;
+  else itemsPedidoProv.push({producto_id:id, nombre, cantidad:qty, precio_unitario:precio});
+  renderItemsProv();
+}
+
+function renderItemsProv(){
+  const el=document.getElementById('pp-items-list');
+  if(!itemsPedidoProv.length){el.innerHTML='';return;}
+  el.innerHTML=itemsPedidoProv.map((i,idx)=>`
+    <div class="carrito-item">
+      <div class="ci-info">
+        <span class="ci-nombre">${i.nombre}</span>
+        <span class="ci-precio">$${i.precio_unitario.toFixed(2)} c/u</span>
+      </div>
+      <div class="ci-controls">
+        <span>×${i.cantidad}</span>
+        <button class="ci-remove" onclick="quitarItemProv(${idx})">🗑</button>
+      </div>
+    </div>`).join('');
+}
+
+function quitarItemProv(idx){ itemsPedidoProv.splice(idx,1); renderItemsProv(); }
+
+function guardarPedidoProv(){
+  const proveedor_id=parseInt(document.getElementById('pp-proveedor').value);
+  if(!proveedor_id){showToast('⚠ Selecciona un proveedor');return;}
+  if(!itemsPedidoProv.length){showToast('⚠ Agrega productos');return;}
+  fetch('/api/pedidos-proveedor',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
+    proveedor_id, items:itemsPedidoProv, notas:document.getElementById('pp-notas').value
+  })}).then(r=>r.json()).then(()=>{
+    closeModal();
+    showToast('✓ Pedido creado');
+    cargarPedidosProv();
+  });
+}
+
+// ── INVENTARIO ────────────────────────────────────────────
+function cargarInventario(){
+  fetch('/api/productos').then(r=>r.json()).then(data=>{
+    const list=document.getElementById('inventario-list');
+    list.innerHTML=data.map(p=>`
+      <div class="inv-item">
+        <div class="inv-info">
+          <span class="inv-nombre">${p.nombre}</span>
+          <span class="inv-sku">${p.sku}</span>
+          <span class="inv-cat">${p.categoria_icono} ${p.categoria}</span>
+        </div>
+        <div class="inv-right">
+          <span class="inv-precio">$${p.precio.toFixed(2)}</span>
+          <span class="inv-stock ${p.stock<5?'stock-low':''}">${p.stock} pzas</span>
+          <button class="btn btn-sm" onclick="editarProducto(${p.id})">✏</button>
+        </div>
+      </div>`).join('');
+  });
+}
+
+async function openNuevoProducto(){
+  const cats=await fetch('/api/categorias').then(r=>r.json());
+  if(!proveedores.length) proveedores=await fetch('/api/proveedores').then(r=>r.json());
+  document.getElementById('modal-content').innerHTML=`
+    <h3 class="modal-title">Nuevo Producto</h3>
+    <div class="form-group"><label>Nombre *</label><input id="np-nombre" type="text"></div>
+    <div class="form-group"><label>Descripción</label><textarea id="np-desc" rows="2"></textarea></div>
+    <div class="form-row">
+      <div class="form-group"><label>Precio *</label><input id="np-precio" type="number" step="0.01"></div>
+      <div class="form-group"><label>Stock</label><input id="np-stock" type="number" value="0"></div>
+    </div>
+    <div class="form-group"><label>SKU</label><input id="np-sku" type="text"></div>
+    <div class="form-row">
+      <div class="form-group"><label>Categoría</label>
+        <select id="np-cat"><option value="">—</option>${cats.map(c=>`<option value="${c.id}">${c.icono} ${c.nombre}</option>`).join('')}</select>
+      </div>
+      <div class="form-group"><label>Proveedor</label>
+        <select id="np-prov"><option value="">—</option>${proveedores.map(p=>`<option value="${p.id}">${p.nombre}</option>`).join('')}</select>
+      </div>
+    </div>
+    <button class="btn btn-primary btn-full" onclick="guardarProducto()">Guardar producto</button>`;
+  document.getElementById('modal-overlay').classList.remove('hidden');
+}
+
+function guardarProducto(){
+  const nombre=document.getElementById('np-nombre').value.trim();
+  const precio=parseFloat(document.getElementById('np-precio').value);
+  if(!nombre||isNaN(precio)){showToast('⚠ Nombre y precio requeridos');return;}
+  fetch('/api/productos',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
+    nombre, descripcion:document.getElementById('np-desc').value,
+    precio, stock:parseInt(document.getElementById('np-stock').value)||0,
+    sku:document.getElementById('np-sku').value,
+    categoria_id:document.getElementById('np-cat').value||null,
+    proveedor_id:document.getElementById('np-prov').value||null
+  })}).then(r=>r.json()).then(()=>{closeModal();showToast('✓ Producto creado');cargarInventario();});
+}
+
+function editarProducto(id){
+  fetch('/api/productos').then(r=>r.json()).then(data=>{
+    const p=data.find(x=>x.id===id);
+    if(!p) return;
+    document.getElementById('modal-content').innerHTML=`
+      <h3 class="modal-title">Editar Stock</h3>
+      <p style="font-weight:600;margin-bottom:12px">${p.nombre}</p>
+      <div class="form-group"><label>Nuevo stock</label><input id="edit-stock" type="number" value="${p.stock}"></div>
+      <div class="form-group"><label>Nuevo precio</label><input id="edit-precio" type="number" step="0.01" value="${p.precio}"></div>
+      <button class="btn btn-primary btn-full" onclick="guardarEdicion(${id})">Actualizar</button>`;
+    document.getElementById('modal-overlay').classList.remove('hidden');
+  });
+}
+
+function guardarEdicion(id){
+  const stock=parseInt(document.getElementById('edit-stock').value);
+  const precio=parseFloat(document.getElementById('edit-precio').value);
+  fetch(`/api/productos/${id}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({stock,precio})})
+    .then(r=>r.json()).then(()=>{closeModal();showToast('✓ Producto actualizado');cargarInventario();});
+}
+
+// ── CLIENTES ──────────────────────────────────────────────
+function cargarClientes(){
+  fetch('/api/clientes').then(r=>r.json()).then(data=>{
+    const list=document.getElementById('clientes-list');
+    list.innerHTML=data.map(c=>`
+      <div class="cliente-card">
+        <div class="cc-avatar">${c.nombre[0]}</div>
+        <div class="cc-info">
+          <span class="cc-nombre">${c.nombre}</span>
+          <span class="cc-tel">${c.telefono}</span>
+          <span class="cc-email">${c.email}</span>
+        </div>
+        <div class="cc-fecha">${c.fecha_registro}</div>
+      </div>`).join('');
+  });
+}
+
+function openNuevoClienteEmp(){
+  document.getElementById('modal-content').innerHTML=`
+    <h3 class="modal-title">Nuevo Cliente</h3>
+    <div class="form-group"><label>Nombre *</label><input id="nc2-nombre" type="text"></div>
+    <div class="form-group"><label>Teléfono</label><input id="nc2-tel" type="tel"></div>
+    <div class="form-group"><label>Email</label><input id="nc2-email" type="email"></div>
+    <div class="form-group"><label>Dirección</label><input id="nc2-dir" type="text"></div>
+    <button class="btn btn-primary btn-full" onclick="guardarClienteEmp()">Guardar</button>`;
+  document.getElementById('modal-overlay').classList.remove('hidden');
+}
+
+function guardarClienteEmp(){
+  const nombre=document.getElementById('nc2-nombre').value.trim();
+  if(!nombre){showToast('⚠ El nombre es requerido');return;}
+  fetch('/api/clientes',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
+    nombre, telefono:document.getElementById('nc2-tel').value,
+    email:document.getElementById('nc2-email').value,
+    direccion:document.getElementById('nc2-dir').value
+  })}).then(r=>r.json()).then(()=>{closeModal();showToast('✓ Cliente creado');cargarClientes();});
+}
+
+// Init
+cargarPedidosClientes();
+
+// Soporte para hash de URL
+if(window.location.hash==='#proveedores') showTab('pedidos-prov');
+</script>
+{% endblock %}

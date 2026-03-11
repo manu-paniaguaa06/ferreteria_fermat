@@ -1,0 +1,121 @@
+{% extends "base.html" %}
+{% block title %}Pedidos{% endblock %}
+{% block content %}
+
+<div class="page-header">
+  <h1 class="page-title">Pedidos</h1>
+  <a href="/catalogo" class="btn btn-primary">+ Nuevo pedido</a>
+</div>
+
+<!-- Filtros de estado -->
+<div class="filtros-scroll">
+  <button class="filter-pill active" onclick="filtrar(this,'')">Todos</button>
+  <button class="filter-pill" onclick="filtrar(this,'pendiente')">⏳ Pendiente</button>
+  <button class="filter-pill" onclick="filtrar(this,'confirmado')">✅ Confirmado</button>
+  <button class="filter-pill" onclick="filtrar(this,'entregado')">📦 Entregado</button>
+  <button class="filter-pill" onclick="filtrar(this,'cancelado')">❌ Cancelado</button>
+</div>
+
+<div id="pedidos-list" class="pedidos-list">
+  <div class="loading-spinner">⚙ Cargando...</div>
+</div>
+
+{% endblock %}
+{% block scripts %}
+<script>
+let pedidosData = [];
+
+function cargarPedidos(estado=''){
+  let url = '/api/pedidos';
+  if(estado) url += `?estado=${estado}`;
+  fetch(url).then(r=>r.json()).then(data=>{
+    pedidosData = data;
+    renderPedidos(data);
+  });
+}
+
+function renderPedidos(data){
+  const list = document.getElementById('pedidos-list');
+  if(data.length===0){
+    list.innerHTML='<p class="empty-msg">No hay pedidos con este filtro</p>';
+    return;
+  }
+  list.innerHTML = data.map(p=>`
+    <div class="pedido-card" onclick="verPedido(${p.id})">
+      <div class="pedido-header">
+        <span class="pedido-id">#${p.id}</span>
+        <span class="badge badge-${p.estado}">${estadoLabel(p.estado)}</span>
+      </div>
+      <div class="pedido-cliente">${p.cliente}</div>
+      <div class="pedido-meta">
+        <span>${p.fecha}</span>
+        <span class="pedido-total">$${p.total.toFixed(2)}</span>
+      </div>
+      <div class="pedido-items-preview">
+        ${p.items.slice(0,2).map(i=>`<span class="item-chip">${i.producto} ×${i.cantidad}</span>`).join('')}
+        ${p.items.length>2?`<span class="item-chip muted">+${p.items.length-2} más</span>`:''}
+      </div>
+    </div>`).join('');
+}
+
+function estadoLabel(e){
+  return {pendiente:'⏳ Pendiente', confirmado:'✅ Confirmado', entregado:'📦 Entregado', cancelado:'❌ Cancelado'}[e]||e;
+}
+
+function filtrar(btn, estado){
+  document.querySelectorAll('.filter-pill').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  cargarPedidos(estado);
+}
+
+function verPedido(id){
+  const p = pedidosData.find(x=>x.id===id);
+  if(!p) return;
+  document.getElementById('modal-content').innerHTML = `
+    <div class="pedido-detalle">
+      <div class="pd-header">
+        <h3>Pedido #${p.id}</h3>
+        <span class="badge badge-${p.estado}">${estadoLabel(p.estado)}</span>
+      </div>
+      <div class="pd-meta">
+        <div><span>Cliente</span><strong>${p.cliente}</strong></div>
+        <div><span>Fecha</span><strong>${p.fecha}</strong></div>
+      </div>
+      <h4>Productos</h4>
+      <div class="pd-items">
+        ${p.items.map(i=>`
+          <div class="pd-item">
+            <span class="pd-item-nombre">${i.producto}</span>
+            <span class="pd-item-qty">×${i.cantidad}</span>
+            <span class="pd-item-sub">$${i.subtotal.toFixed(2)}</span>
+          </div>`).join('')}
+      </div>
+      <div class="pd-total">
+        <span>Total</span><strong>$${p.total.toFixed(2)}</strong>
+      </div>
+      ${p.notas?`<div class="pd-notas"><span>Notas:</span> ${p.notas}</div>`:''}
+      ${p.estado==='pendiente'?`
+      <div class="pd-actions">
+        <button class="btn btn-success" onclick="cambiarEstado(${p.id},'confirmado')">✅ Confirmar</button>
+        <button class="btn btn-danger" onclick="cambiarEstado(${p.id},'cancelado')">❌ Cancelar</button>
+      </div>`:''}
+      ${p.estado==='confirmado'?`
+      <div class="pd-actions">
+        <button class="btn btn-success" onclick="cambiarEstado(${p.id},'entregado')">📦 Marcar entregado</button>
+      </div>`:''}
+    </div>`;
+  document.getElementById('modal-overlay').classList.remove('hidden');
+}
+
+function cambiarEstado(id, estado){
+  fetch(`/api/pedidos/${id}/estado`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({estado})})
+    .then(r=>r.json()).then(()=>{
+      closeModal();
+      showToast('✓ Estado actualizado');
+      cargarPedidos();
+    });
+}
+
+cargarPedidos();
+</script>
+{% endblock %}

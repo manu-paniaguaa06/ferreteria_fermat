@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Fermat — {% block title %}{% endblock %}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}">
+</head>
+<body>
+
+<nav class="navbar">
+  <a href="/" class="navbar-brand">
+    <span class="brand-icon">⚙</span>
+    <span class="brand-text">FERMAT</span>
+  </a>
+  <div class="navbar-links">
+    <a href="/catalogo" class="nav-link {% if request.path == '/catalogo' %}active{% endif %}">
+      <span class="nav-icon">🏪</span><span class="nav-label">Catálogo</span>
+    </a>
+    <a href="/pedidos" class="nav-link {% if request.path == '/pedidos' %}active{% endif %}">
+      <span class="nav-icon">📋</span><span class="nav-label">Mis Pedidos</span>
+    </a>
+    <a href="/empleados" class="nav-link {% if request.path == '/empleados' %}active{% endif %}">
+      <span class="nav-icon">🛠</span><span class="nav-label">Empleados</span>
+    </a>
+  </div>
+</nav>
+
+<main class="main-content">
+  {% block content %}{% endblock %}
+</main>
+
+<!-- TOAST -->
+<div id="toast" class="toast"></div>
+
+<!-- MODAL -->
+<div id="modal-overlay" class="modal-overlay hidden">
+  <div id="modal-box" class="modal-box">
+    <button class="modal-close" onclick="closeModal()">✕</button>
+    <div id="modal-content"></div>
+  </div>
+</div>
+
+<script src="{{ url_for('static', filename='js/main.js') }}"></script>
+{% block scripts %}{% endblock %}
+</body>
+</html>

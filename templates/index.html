@@ -1,0 +1,105 @@
+{% extends "base.html" %}
+{% block title %}Inicio{% endblock %}
+{% block content %}
+
+<div class="dashboard">
+  <div class="dashboard-hero">
+    <div class="hero-text">
+      <p class="hero-sub">Bienvenido de vuelta</p>
+      <h1 class="hero-title">Ferretería<br><span>Fermat</span></h1>
+      <p class="hero-desc">Tu herramienta de gestión interna</p>
+    </div>
+    <div class="hero-gear">⚙</div>
+  </div>
+
+  <div class="stats-grid" id="stats-grid">
+    <div class="stat-card stat-orange">
+      <div class="stat-icon">📦</div>
+      <div class="stat-body">
+        <span class="stat-num" id="stat-productos">—</span>
+        <span class="stat-label">Productos</span>
+      </div>
+    </div>
+    <div class="stat-card stat-blue">
+      <div class="stat-icon">👥</div>
+      <div class="stat-body">
+        <span class="stat-num" id="stat-clientes">—</span>
+        <span class="stat-label">Clientes</span>
+      </div>
+    </div>
+    <div class="stat-card stat-yellow">
+      <div class="stat-icon">⏳</div>
+      <div class="stat-body">
+        <span class="stat-num" id="stat-pendientes">—</span>
+        <span class="stat-label">Pendientes</span>
+      </div>
+    </div>
+    <div class="stat-card stat-red">
+      <div class="stat-icon">⚠️</div>
+      <div class="stat-body">
+        <span class="stat-num" id="stat-stock-bajo">—</span>
+        <span class="stat-label">Stock bajo</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="quick-actions">
+    <h2 class="section-title">Acceso rápido</h2>
+    <div class="actions-grid">
+      <a href="/catalogo" class="action-card">
+        <span class="action-icon">🏪</span>
+        <span class="action-label">Ver Catálogo</span>
+        <span class="action-arrow">→</span>
+      </a>
+      <a href="/pedidos" class="action-card">
+        <span class="action-icon">🛒</span>
+        <span class="action-label">Nuevo Pedido</span>
+        <span class="action-arrow">→</span>
+      </a>
+      <a href="/empleados" class="action-card">
+        <span class="action-icon">📊</span>
+        <span class="action-label">Panel Empleados</span>
+        <span class="action-arrow">→</span>
+      </a>
+      <a href="/empleados#proveedores" class="action-card">
+        <span class="action-icon">🚚</span>
+        <span class="action-label">Proveedores</span>
+        <span class="action-arrow">→</span>
+      </a>
+    </div>
+  </div>
+
+  <div class="recent-section">
+    <h2 class="section-title">Pedidos recientes</h2>
+    <div id="pedidos-recientes" class="recent-list"></div>
+  </div>
+</div>
+
+{% endblock %}
+{% block scripts %}
+<script>
+fetch('/api/dashboard').then(r=>r.json()).then(d=>{
+  document.getElementById('stat-productos').textContent = d.total_productos;
+  document.getElementById('stat-clientes').textContent = d.total_clientes;
+  document.getElementById('stat-pendientes').textContent = d.pedidos_pendientes;
+  document.getElementById('stat-stock-bajo').textContent = d.stock_bajo;
+
+  const list = document.getElementById('pedidos-recientes');
+  if(d.pedidos_recientes.length === 0){
+    list.innerHTML = '<p class="empty-msg">No hay pedidos aún</p>';
+    return;
+  }
+  list.innerHTML = d.pedidos_recientes.map(p=>`
+    <div class="recent-item">
+      <div class="recent-info">
+        <span class="recent-cliente">${p.cliente}</span>
+        <span class="recent-fecha">${p.fecha}</span>
+      </div>
+      <div class="recent-right">
+        <span class="badge badge-${p.estado}">${p.estado}</span>
+        <span class="recent-total">$${p.total.toFixed(2)}</span>
+      </div>
+    </div>`).join('');
+});
+</script>
+{% endblock %}

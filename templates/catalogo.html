@@ -1,0 +1,267 @@
+{% extends "base.html" %}
+{% block title %}Catálogo{% endblock %}
+{% block content %}
+
+<div class="page-header">
+  <h1 class="page-title">Catálogo</h1>
+  <button class="btn btn-primary" onclick="openNuevoPedido()">🛒 Nuevo pedido</button>
+</div>
+
+<!-- Búsqueda -->
+<div class="search-bar">
+  <span class="search-icon">🔍</span>
+  <input type="text" id="search-input" placeholder="Buscar producto..." oninput="filtrarProductos()">
+</div>
+
+<!-- Categorías -->
+<div class="categorias-scroll" id="categorias-scroll">
+  <button class="cat-pill active" data-id="" onclick="seleccionarCategoria(this, '')">
+    Todos
+  </button>
+</div>
+
+<!-- Grid de productos -->
+<div class="productos-grid" id="productos-grid">
+  <div class="loading-spinner">⚙ Cargando...</div>
+</div>
+
+<!-- Carrito flotante -->
+<div id="carrito-fab" class="carrito-fab hidden" onclick="openCarrito()">
+  🛒 <span id="carrito-count">0</span>
+</div>
+
+<!-- Modal: Nuevo Pedido / Carrito -->
+<div id="carrito-modal" class="side-panel hidden">
+  <div class="side-panel-header">
+    <h3>Tu Pedido</h3>
+    <button onclick="closeCarrito()">✕</button>
+  </div>
+  <div class="side-panel-body">
+    <div id="carrito-items"></div>
+  </div>
+  <div class="side-panel-footer">
+    <div class="carrito-total">
+      <span>Total</span>
+      <span id="carrito-total">$0.00</span>
+    </div>
+    <div class="carrito-form">
+      <label>Cliente</label>
+      <div class="input-row">
+        <input type="text" id="cliente-search" placeholder="Buscar cliente..." oninput="buscarCliente()">
+        <button class="btn btn-sm" onclick="openNuevoCliente()">+ Nuevo</button>
+      </div>
+      <div id="cliente-resultados" class="dropdown-list hidden"></div>
+      <div id="cliente-seleccionado" class="cliente-tag hidden"></div>
+      <label>Notas</label>
+      <textarea id="pedido-notas" rows="2" placeholder="Instrucciones especiales..."></textarea>
+      <button class="btn btn-primary btn-full" onclick="confirmarPedido()">✓ Confirmar pedido</button>
+    </div>
+  </div>
+</div>
+<div id="carrito-overlay" class="side-overlay hidden" onclick="closeCarrito()"></div>
+
+{% endblock %}
+{% block scripts %}
+<script>
+let productos = [];
+let carrito = [];
+let clienteSeleccionado = null;
+let categoriaActiva = '';
+
+// Cargar categorías
+fetch('/api/categorias').then(r=>r.json()).then(cats=>{
+  const scroll = document.getElementById('categorias-scroll');
+  cats.forEach(c=>{
+    const btn = document.createElement('button');
+    btn.className = 'cat-pill';
+    btn.dataset.id = c.id;
+    btn.innerHTML = `${c.icono} ${c.nombre}`;
+    btn.onclick = () => seleccionarCategoria(btn, c.id);
+    scroll.appendChild(btn);
+  });
+});
+
+// Cargar productos
+function cargarProductos(categoriaId='', busqueda=''){
+  let url = `/api/productos?q=${encodeURIComponent(busqueda)}`;
+  if(categoriaId) url += `&categoria=${categoriaId}`;
+  fetch(url).then(r=>r.json()).then(data=>{
+    productos = data;
+    renderProductos(data);
+  });
+}
+
+function renderProductos(data){
+  const grid = document.getElementById('productos-grid');
+  if(data.length===0){
+    grid.innerHTML='<p class="empty-msg">No se encontraron productos</p>';
+    return;
+  }
+  grid.innerHTML = data.map(p=>`
+    <div class="producto-card ${p.stock===0?'out-of-stock':''}">
+      <div class="producto-cat-badge">${p.categoria_icono} ${p.categoria}</div>
+      <div class="producto-nombre">${p.nombre}</div>
+      <div class="producto-desc">${p.descripcion||''}</div>
+      <div class="producto-footer">
+        <div class="producto-precio">$${p.precio.toFixed(2)}</div>
+        <div class="producto-stock ${p.stock<5?'stock-low':''}">${p.stock} pzas</div>
+      </div>
+      ${p.stock>0?`<button class="btn-add" onclick="agregarAlCarrito(${p.id})">+ Agregar</button>`
+                 :`<div class="sin-stock">Sin stock</div>`}
+    </div>`).join('');
+}
+
+function seleccionarCategoria(btn, id){
+  document.querySelectorAll('.cat-pill').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  categoriaActiva = id;
+  cargarProductos(id, document.getElementById('search-input').value);
+}
+
+function filtrarProductos(){
+  cargarProductos(categoriaActiva, document.getElementById('search-input').value);
+}
+
+function agregarAlCarrito(productoId){
+  const prod = productos.find(p=>p.id===productoId);
+  if(!prod) return;
+  const existente = carrito.find(i=>i.id===productoId);
+  if(existente) existente.cantidad++;
+  else carrito.push({...prod, cantidad:1});
+  actualizarCarritoUI();
+  showToast(`✓ ${prod.nombre} agregado`);
+  document.getElementById('carrito-fab').classList.remove('hidden');
+}
+
+function actualizarCarritoUI(){
+  const count = carrito.reduce((s,i)=>s+i.cantidad,0);
+  document.getElementById('carrito-count').textContent = count;
+  const total = carrito.reduce((s,i)=>s+i.precio*i.cantidad,0);
+  document.getElementById('carrito-total').textContent = `$${total.toFixed(2)}`;
+  const itemsEl = document.getElementById('carrito-items');
+  if(carrito.length===0){
+    itemsEl.innerHTML='<p class="empty-msg">Carrito vacío</p>';
+    return;
+  }
+  itemsEl.innerHTML = carrito.map((item,idx)=>`
+    <div class="carrito-item">
+      <div class="ci-info">
+        <span class="ci-nombre">${item.nombre}</span>
+        <span class="ci-precio">$${item.precio.toFixed(2)} c/u</span>
+      </div>
+      <div class="ci-controls">
+        <button onclick="cambiarCantidad(${idx},-1)">−</button>
+        <span>${item.cantidad}</span>
+        <button onclick="cambiarCantidad(${idx},1)">+</button>
+        <button class="ci-remove" onclick="quitarItem(${idx})">🗑</button>
+      </div>
+    </div>`).join('');
+}
+
+function cambiarCantidad(idx, delta){
+  carrito[idx].cantidad += delta;
+  if(carrito[idx].cantidad <= 0) carrito.splice(idx,1);
+  actualizarCarritoUI();
+  if(carrito.length===0) document.getElementById('carrito-fab').classList.add('hidden');
+}
+
+function quitarItem(idx){
+  carrito.splice(idx,1);
+  actualizarCarritoUI();
+  if(carrito.length===0) document.getElementById('carrito-fab').classList.add('hidden');
+}
+
+function openCarrito(){
+  actualizarCarritoUI();
+  document.getElementById('carrito-modal').classList.remove('hidden');
+  document.getElementById('carrito-overlay').classList.remove('hidden');
+}
+
+function closeCarrito(){
+  document.getElementById('carrito-modal').classList.add('hidden');
+  document.getElementById('carrito-overlay').classList.add('hidden');
+}
+
+function openNuevoPedido(){
+  if(carrito.length===0){ showToast('Agrega productos al carrito primero'); return; }
+  openCarrito();
+}
+
+let clienteTimeout;
+function buscarCliente(){
+  clearTimeout(clienteTimeout);
+  clienteTimeout = setTimeout(()=>{
+    const q = document.getElementById('cliente-search').value;
+    if(q.length<2) return;
+    fetch(`/api/clientes?q=${encodeURIComponent(q)}`).then(r=>r.json()).then(data=>{
+      const res = document.getElementById('cliente-resultados');
+      if(data.length===0){ res.innerHTML='<div class="dropdown-item muted">Sin resultados</div>'; }
+      else {
+        res.innerHTML = data.map(c=>`
+          <div class="dropdown-item" onclick="selectCliente(${c.id},'${c.nombre}')">
+            <strong>${c.nombre}</strong><span>${c.telefono}</span>
+          </div>`).join('');
+      }
+      res.classList.remove('hidden');
+    });
+  }, 300);
+}
+
+function selectCliente(id, nombre){
+  clienteSeleccionado = id;
+  document.getElementById('cliente-resultados').classList.add('hidden');
+  document.getElementById('cliente-search').value='';
+  const tag = document.getElementById('cliente-seleccionado');
+  tag.innerHTML = `<span>${nombre}</span><button onclick="clearCliente()">✕</button>`;
+  tag.classList.remove('hidden');
+}
+
+function clearCliente(){
+  clienteSeleccionado = null;
+  document.getElementById('cliente-seleccionado').classList.add('hidden');
+}
+
+function confirmarPedido(){
+  if(!clienteSeleccionado){ showToast('⚠ Selecciona un cliente'); return; }
+  if(carrito.length===0){ showToast('⚠ El carrito está vacío'); return; }
+  const body = {
+    cliente_id: clienteSeleccionado,
+    notas: document.getElementById('pedido-notas').value,
+    items: carrito.map(i=>({producto_id:i.id, cantidad:i.cantidad}))
+  };
+  fetch('/api/pedidos',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})
+    .then(r=>r.json()).then(d=>{
+      showToast('✓ Pedido #'+d.id+' creado exitosamente');
+      carrito=[];
+      clienteSeleccionado=null;
+      closeCarrito();
+      document.getElementById('carrito-fab').classList.add('hidden');
+    });
+}
+
+function openNuevoCliente(){
+  document.getElementById('modal-content').innerHTML = `
+    <h3 class="modal-title">Nuevo Cliente</h3>
+    <div class="form-group"><label>Nombre *</label><input id="nc-nombre" type="text" placeholder="Nombre completo"></div>
+    <div class="form-group"><label>Teléfono</label><input id="nc-tel" type="tel" placeholder="555-0000"></div>
+    <div class="form-group"><label>Email</label><input id="nc-email" type="email" placeholder="correo@ejemplo.com"></div>
+    <div class="form-group"><label>Dirección</label><input id="nc-dir" type="text" placeholder="Calle y número"></div>
+    <button class="btn btn-primary btn-full" onclick="guardarNuevoCliente()">Guardar cliente</button>`;
+  document.getElementById('modal-overlay').classList.remove('hidden');
+}
+
+function guardarNuevoCliente(){
+  const nombre = document.getElementById('nc-nombre').value.trim();
+  if(!nombre){ showToast('⚠ El nombre es requerido'); return; }
+  const body = {nombre, telefono: document.getElementById('nc-tel').value, email: document.getElementById('nc-email').value, direccion: document.getElementById('nc-dir').value};
+  fetch('/api/clientes',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})
+    .then(r=>r.json()).then(c=>{
+      closeModal();
+      selectCliente(c.id, c.nombre);
+      showToast('✓ Cliente creado');
+    });
+}
+
+cargarProductos();
+</script>
+{% endblock %}
