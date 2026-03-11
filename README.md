@@ -1,96 +1,65 @@
 # ⚙ Fermat — Sistema de Gestión Interna
 
-Aplicación web interna para **Ferretería Fermat**, construida con Flask + SQLite.
-Optimizada para **iPad y celular**.
+App web interna para **Ferretería Fermat** · Flask + PostgreSQL (Railway) / SQLite (local)
 
 ---
 
-## 🚀 Instalación rápida
+## 🖥 Correr en local (desarrollo)
 
 ```bash
-# 1. Instalar dependencias
-pip install -r requirements.txt
-
-# 2. Ejecutar
 python app.py
+# Abre → http://localhost:5000
 ```
 
-Luego abre **http://localhost:5000** en tu navegador o tablet.
+Sin instalar nada extra — usa SQLite automáticamente si no hay DATABASE_URL.
 
 ---
 
-## 📱 Vistas
+## 🚀 Deploy en Railway
 
-| Vista | Ruta | Descripción |
-|-------|------|-------------|
-| Inicio | `/` | Dashboard con estadísticas y accesos rápidos |
-| Catálogo | `/catalogo` | Ver productos por categoría, agregar al carrito y hacer pedidos |
-| Pedidos | `/pedidos` | Ver y gestionar pedidos de clientes |
-| Empleados | `/empleados` | Panel completo: pedidos, proveedores, inventario, clientes |
+### 1 — Subir a GitHub
 
----
+```bash
+git init && git add . && git commit -m "Fermat init"
+git remote add origin https://github.com/TU_USUARIO/fermat.git
+git push -u origin main
+```
 
-## 🔌 API Endpoints
+### 2 — Crear proyecto en Railway
 
-### Productos
-- `GET /api/productos?q=busqueda&categoria=1` — Listar/buscar
-- `POST /api/productos` — Crear
-- `PUT /api/productos/<id>` — Editar
-- `DELETE /api/productos/<id>` — Desactivar
+1. [railway.app](https://railway.app) → New Project → Deploy from GitHub repo
+2. Selecciona el repo — Railway detecta el Procfile automáticamente
 
-### Categorías
-- `GET /api/categorias`
-- `POST /api/categorias`
+### 3 — Agregar PostgreSQL
 
-### Clientes
-- `GET /api/clientes?q=busqueda`
-- `POST /api/clientes`
-- `PUT /api/clientes/<id>`
+1. En el proyecto → "+ New" → Database → PostgreSQL
+2. Railway agrega DATABASE_URL automáticamente a tu servicio
+3. Haz Redeploy — las tablas se crean solas
 
-### Pedidos de Clientes
-- `GET /api/pedidos?estado=pendiente`
-- `POST /api/pedidos`
-- `PUT /api/pedidos/<id>/estado`
+### 4 — Obtener URL pública
 
-### Proveedores
-- `GET /api/proveedores`
-- `POST /api/proveedores`
-
-### Pedidos a Proveedores
-- `GET /api/pedidos-proveedor`
-- `POST /api/pedidos-proveedor`
-- `PUT /api/pedidos-proveedor/<id>/estado`
-
-### Dashboard
-- `GET /api/dashboard`
+Settings → Domains → Generate Domain  
+Ejemplo: https://fermat-production.up.railway.app
 
 ---
 
-## 🗄 Base de datos
+## Variables de entorno
 
-SQLite (`fermat.db`), auto-generada en el primer arranque con datos de ejemplo:
-- 6 categorías
-- 10 productos
-- 2 proveedores
-- 3 clientes de ejemplo
-
-Para producción, cambia `SQLALCHEMY_DATABASE_URI` a PostgreSQL o MySQL.
+| Variable | Descripción |
+|----------|-------------|
+| DATABASE_URL | URL de PostgreSQL (Railway la asigna automáticamente) |
+| PORT | Puerto (Railway lo asigna automáticamente) |
 
 ---
 
-## 🏗 Estructura
+## Estructura
 
 ```
 fermat/
-├── app.py              # Flask app + modelos + rutas API
-├── requirements.txt
-├── templates/
-│   ├── base.html       # Layout base con navbar
-│   ├── index.html      # Dashboard
-│   ├── catalogo.html   # Catálogo + carrito
-│   ├── pedidos.html    # Pedidos clientes
-│   └── empleados.html  # Panel empleados
-└── static/
-    ├── css/main.css    # Estilos (dark theme industrial)
-    └── js/main.js      # Utilidades JS
+├── app.py              # Flask — compatible PG y SQLite
+├── Procfile            # gunicorn para Railway
+├── railway.json        # Config Railway
+├── requirements.txt    # flask, gunicorn, psycopg2-binary
+├── templates/          # index, catalogo, pedidos, empleados
+└── static/css+js
 ```
